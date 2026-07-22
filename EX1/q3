@@ -1,0 +1,42 @@
+#include<stdio.h>
+#include<unistd.h>
+int main(){//p1
+   int n,p2,p3;
+   printf("enter a number:");
+   scanf("%d",&n);
+   p2=fork();
+   if(p2==0){
+      int c=2,i;
+      printf("P2:child process  ");
+      while(c<=n){
+	 int flag=1;
+	 for(i=2;i<=c/2;i++){
+	    if(c%i==0){
+	       flag=0;
+	       break;
+	    }
+	 }
+	 if(flag){
+	    printf("%d ",c," ");
+	 }
+	 c=c+1;
+      }
+      printf("\n");
+   }
+   else{
+      p3=fork();
+      if(p3==0){
+	 printf("P3:child process  ");
+	 int a=-1,b=1,ans,i;
+	 for(i=0;i<n;i++){
+	    ans=a+b;
+	    printf("%d ",ans);
+	    a=b;
+	    b=ans;
+	 }
+	 printf("\n");
+      }
+   }
+   return 0;
+}
+
