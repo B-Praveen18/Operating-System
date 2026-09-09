@@ -1,4 +1,4 @@
-[24bcs048@mepcolinux ex7]$cat pgm.c
+[24bcs056@mepcolinux ex7]$cat pgm.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
