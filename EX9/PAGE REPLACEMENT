@@ -9,7 +9,7 @@ typedef struct
     int frames[MAX]; /* Memory frames */
     int recent[MAX]; /* Used for LRU */
     int n; /* Number of pages */
-    int f; /* Number of fuck */
+    int f; /* Number of frames */
     int faults; /* Page faults */
     int hits; /* Page hits */
 } Page;
