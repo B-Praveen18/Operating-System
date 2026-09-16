@@ -1,0 +1,159 @@
+#include <stdio.h>
+
+#define MAX 20
+
+typedef struct
+{
+    int page;
+    int frame;
+} pageTable;
+
+/* Paging function */
+int paging(int *process, pageTable *pt, int *intfrag, int *pageSize)
+{
+    int pages;
+    int i;
+
+    printf("\nEnter page size: ");
+    scanf("%d", pageSize);
+
+    /* Number of pages required */
+    pages = (*process + *pageSize - 1) / *pageSize;
+
+    /* Internal fragmentation */
+    *intfrag = (pages * (*pageSize)) - *process;
+
+    /* Create page table */
+    for (i = 0; i < pages; i++)
+    {
+        pt[i].page = i;
+
+        printf("Enter frame number for Page %d: ", i);
+        scanf("%d", &pt[i].frame);
+    }
+
+    return pages;
+}
+
+/* Display page table */
+void displayPageTable(pageTable *pt, int pages)
+{
+    int i;
+
+    printf("\n--- Page Table ---\n");
+    printf("Page\tFrame\n");
+
+    for (i = 0; i < pages; i++)
+    {
+        printf("%d\t%d\n", pt[i].page, pt[i].frame);
+    }
+}
+
+/* Logical to Physical Address Translation */
+void addressTranslation(pageTable *pt, int pages, int pageSize)
+{
+    int logicalAddress;
+    int pageNumber;
+    int offset;
+    int frameNumber;
+    int physicalAddress;
+
+    printf("\nEnter logical address: ");
+    scanf("%d", &logicalAddress);
+
+    /* Find page number and offset */
+    pageNumber = logicalAddress / pageSize;
+    offset = logicalAddress % pageSize;
+
+    if (pageNumber >= pages)
+    {
+        printf("\nInvalid logical address!\n");
+        return;
+    }
+
+    frameNumber = pt[pageNumber].frame;
+
+    /* Physical address calculation */
+    physicalAddress = (frameNumber * pageSize) + offset;
+
+    printf("\n--- Address Translation ---\n");
+    printf("Logical Address = %d\n", logicalAddress);
+    printf("Page Number = %d\n", pageNumber);
+    printf("Offset = %d\n", offset);
+    printf("Frame Number = %d\n", frameNumber);
+    printf("Physical Address = %d\n", physicalAddress);
+}
+
+int main()
+{
+    int process;
+    int intfrag;
+    int pages;
+    int pageSize;
+    int choice;
+
+    pageTable pt[MAX];
+
+    printf("Enter process size: ");
+    scanf("%d", &process);
+
+    /* Create page table */
+    pages = paging(&process, pt, &intfrag, &pageSize);
+
+    do
+    {
+        printf("\n\n===== PAGING MENU =====");
+        printf("\n1. Display Page Table");
+        printf("\n2. Display Number of Pages");
+        printf("\n3. Display Internal Fragmentation");
+        printf("\n4. Logical to Physical Address Translation");
+        printf("\n5. Display All Details");
+        printf("\n6. Exit");
+
+        printf("\nEnter your choice: ");
+        scanf("%d", &choice);
+
+        switch (choice)
+        {
+            case 1:
+                displayPageTable(pt, pages);
+                break;
+
+            case 2:
+                printf("\nNumber of Pages = %d\n", pages);
+                break;
+
+            case 3:
+                printf("\nInternal Fragmentation = %d\n", intfrag);
+                break;
+
+            case 4:
+                addressTranslation(pt, pages, pageSize);
+                break;
+
+            case 5:
+                printf("\n--- Paging Details ---\n");
+                printf("Process Size = %d\n", process);
+                printf("Page Size = %d\n", pageSize);
+                printf("Number of Pages = %d\n", pages);
+                printf("Internal Fragmentation = %d\n",
+                       intfrag);
+
+                displayPageTable(pt, pages);
+
+                addressTranslation(pt, pages, pageSize);
+                break;
+
+            case 6:
+                printf("\nProgram terminated.\n");
+                break;
+
+            default:
+                printf("\nInvalid choice!\n");
+        }
+
+    } while (choice != 6);
+
+    return 0;
+}
+``` idhule struct use panni irk first program
