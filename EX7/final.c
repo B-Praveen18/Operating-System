@@ -1,196 +1,280 @@
-[24bcs056@mepcolinux ex7]$cat pgm.c
+[24bcs056@mepcolinux ex7]$cat q1.c
 #include <stdio.h>
-#include <stdlib.h>
-#include <limits.h>
+#include <stdbool.h>
 
-#define MAX 50
+#define LIMIT 20
 
-/* Function to display allocation results */
-void displayResults(int partitions[], int num_partitions, int processes[], int num_processes,
-                    int alloc[], const char *title) {
-    int i;
-    int internal_frag = 0, external_frag = 0;
-    int part_used[MAX] = {0};
+// Renamed structure and fields
+struct Partition {
+    int tag;         // Original index
+    int capacity;    // Initial size
+    int vacant;      // Free space left
+};
 
-    /* Mark used partitions and calculate internal fragmentation */
-    for(i = 0; i < num_processes; i++) {
-        if(alloc[i] != -1) {
-            part_used[alloc[i]] = 1;
-            internal_frag += (partitions[alloc[i]] - processes[i]);
-        }
-    }
+// Reorganized printing function with modified table styling
+void printMetrics(struct Partition parts[], int part_total, int jobs[], int job_total, int mappings[]) {
+    int inside_frag = 0;
+    int outside_frag = 0;
+    bool holds_skipped = false;
+    int untouched_memory = 0;
 
-    /* Calculate external fragmentation = total free partition space */
-    for(i = 0; i < num_partitions; i++) {
-        if(!part_used[i]) {
-            external_frag += partitions[i];
-        }
-    }
-
-    printf("\n\t========== %s ==========\n", title);
-    printf("---------------------------------------------------------------\n");
-    printf("Process No\tProcess Size\tBlock No\tBlock Size\tFragment\n");
-    printf("---------------------------------------------------------------\n");
-
-    for(i = 0; i < num_processes; i++) {
-        if(alloc[i] != -1) {
-            printf(" %d\t\t %d\t\t %d\t\t %d\t\t %d\n",
-                   i+1, processes[i], alloc[i]+1, partitions[alloc[i]],
-                   partitions[alloc[i]] - processes[i]);
+    printf("\nJob ID\t\tJob Volume\tPartition Tag\tInternal Leak\n");
+    printf("=============================================================\n");
+    
+    int index = 0;
+    while (index < job_total) {
+        printf("  J%-10d\t  %-12d\t", index + 1, jobs[index]);
+        
+        if (mappings[index] != -1) {
+            int slot = mappings[index];
+            int gap = parts[slot].vacant;
+            printf("  Slot %-5d\t  %-12d\n", parts[slot].tag, gap);
         } else {
-            printf(" %d\t\t %d\t\t Not Allocated\n", i+1, processes[i]);
+            printf("  Unassigned\t  -\n");
+            holds_skipped = true;
+        }
+        index++;
+    }
+
+    for (int k = 0; k < part_total; k++) {
+        if (parts[k].vacant < parts[k].capacity) {
+            inside_frag += parts[k].vacant;
+        } else {
+            untouched_memory += parts[k].capacity;
         }
     }
 
-    printf("---------------------------------------------------------------\n");
-    printf("Total Internal Fragmentation : %d\n", internal_frag);
-    printf("Total External Fragmentation : %d\n", external_frag);
-    printf("---------------------------------------------------------------\n");
+    if (holds_skipped) {
+        outside_frag = untouched_memory;
+    }
+
+    printf("=============================================================\n");
+    printf("Cumulative Internal Fragmentation : %d\n", inside_frag);
+    printf("Cumulative External Fragmentation : %d\n", outside_frag);
 }
 
-/* First Fit Allocation */
-void firstFit(int partitions[], int num_partitions, int processes[], int num_processes) {
-    int i, j;
-    int alloc[MAX];
-    int part_used[MAX] = {0};
+// Rewritten sorting logic using a different bubble sort design pattern
+void orderPartitions(struct Partition parts[], int count, int sequence[], int strategy) {
+    int a = 0;
+    do {
+        sequence[a] = a;
+        a++;
+    } while (a < count);
 
-    for(i = 0; i < num_processes; i++) {
-        alloc[i] = -1;
+    if (strategy == 1) return;
+
+    int scan_a = 0;
+    while (scan_a < count - 1) {
+        int scan_b = 0;
+        while (scan_b < count - scan_a - 1) {
+            bool triggers_swap = false;
+            
+            if (strategy == 2) {
+                triggers_swap = (parts[sequence[scan_b]].vacant > parts[sequence[scan_b + 1]].vacant);
+            } else if (strategy == 3) {
+                triggers_swap = (parts[sequence[scan_b]].vacant < parts[sequence[scan_b + 1]].vacant);
+            }
+
+            if (triggers_swap) {
+                int backup = sequence[scan_b];
+                sequence[scan_b] = sequence[scan_b + 1];
+                sequence[scan_b + 1] = backup;
+            }
+            scan_b++;
+        }
+        scan_a++;
+    }
+}
+
+// Consolidated execution engine using while-loops and updated local arrays
+void runAllocationEngine(struct Partition source_parts[], int part_total, int jobs[], int job_total, int strategy) {
+    struct Partition local_parts[LIMIT];
+    int mappings[LIMIT];
+    int sequence[LIMIT];
+
+    for (int m = 0; m < part_total; m++) {
+        local_parts[m] = source_parts[m];
+        local_parts[m].vacant = source_parts[m].capacity;
+    }
+    
+    for (int n = 0; n < job_total; n++) {
+        mappings[n] = -1;
     }
 
-    for(i = 0; i < num_processes; i++) {
-        for(j = 0; j < num_partitions; j++) {
-            if(!part_used[j] && partitions[j] >= processes[i]) {
-                alloc[i] = j;
-                part_used[j] = 1;
+    int job_idx = 0;
+    while (job_idx < job_total) {
+        orderPartitions(local_parts, part_total, sequence, strategy);
+
+        int search_idx = 0;
+        while (search_idx < part_total) {
+            int current_slot = sequence[search_idx];
+            
+            if (local_parts[current_slot].vacant >= jobs[job_idx]) {
+                mappings[job_idx] = current_slot;
+                local_parts[current_slot].vacant -= jobs[job_idx];
                 break;
             }
+            search_idx++;
         }
+        job_idx++;
     }
 
-    displayResults(partitions, num_partitions, processes, num_processes, alloc, "FIRST FIT");
+    printMetrics(local_parts, part_total, jobs, job_total, mappings);
 }
 
-/* Best Fit Allocation */
-void bestFit(int partitions[], int num_partitions, int processes[], int num_processes) {
-    int i, j;
-    int alloc[MAX];
-    int part_used[MAX] = {0};
-
-    for(i = 0; i < num_processes; i++) {
-        alloc[i] = -1;
-    }
-
-    for(i = 0; i < num_processes; i++) {
-        int best_idx = -1;
-        int min_diff = INT_MAX;
-
-        for(j = 0; j < num_partitions; j++) {
-            if(!part_used[j] && partitions[j] >= processes[i]) {
-                int diff = partitions[j] - processes[i];
-                if(diff < min_diff) {
-                    min_diff = diff;
-                    best_idx = j;
-                }
-            }
-        }
-
-        if(best_idx != -1) {
-            alloc[i] = best_idx;
-            part_used[best_idx] = 1;
-        }
-    }
-
-    displayResults(partitions, num_partitions, processes, num_processes, alloc, "BEST FIT");
+// Wrapper routines mapping directly to the underlying engine
+void executeFirstFit(struct Partition source[], int p_count, int requests[], int r_count) {
+    runAllocationEngine(source, p_count, requests, r_count, 1);
 }
 
-/* Worst Fit Allocation */
-void worstFit(int partitions[], int num_partitions, int processes[], int num_processes) {
-    int i, j;
-    int alloc[MAX];
-    int part_used[MAX] = {0};
+void executeBestFit(struct Partition source[], int p_count, int requests[], int r_count) {
+    runAllocationEngine(source, p_count, requests, r_count, 2);
+}
 
-    for(i = 0; i < num_processes; i++) {
-        alloc[i] = -1;
-    }
-
-    for(i = 0; i < num_processes; i++) {
-        int worst_idx = -1;
-        int max_diff = -1;
-
-        for(j = 0; j < num_partitions; j++) {
-            if(!part_used[j] && partitions[j] >= processes[i]) {
-                int diff = partitions[j] - processes[i];
-                if(diff > max_diff) {
-                    max_diff = diff;
-                    worst_idx = j;
-                }
-            }
-        }
-
-        if(worst_idx != -1) {
-            alloc[i] = worst_idx;
-            part_used[worst_idx] = 1;
-        }
-    }
-
-    displayResults(partitions, num_partitions, processes, num_processes, alloc, "WORST FIT");
+void executeWorstFit(struct Partition source[], int p_count, int requests[], int r_count) {
+    runAllocationEngine(source, p_count, requests, r_count, 3);
 }
 
 int main() {
-    int partitions[MAX], processes[MAX];
-    int num_partitions, num_processes;
-    int i, choice;
+    int total_slots, total_jobs, menu_select;
+    struct Partition memory_slots[LIMIT];
+    int job_requests[LIMIT];
 
-    printf("\n===== CONTIGUOUS MEMORY ALLOCATION =====\n");
-
-    /* Input memory partitions */
-    printf("\nEnter the number of Memory Partitions: ");
-    scanf("%d", &num_partitions);
-
-    printf("Enter the size of each Memory Partition:\n");
-    for(i = 0; i < num_partitions; i++) {
-        printf("Partition %d: ", i+1);
-        scanf("%d", &partitions[i]);
+    printf("Provide total memory segments: ");
+    scanf("%d", &total_slots);
+    
+    printf("Provide capacities for segments:\n");
+    for (int idx = 0; idx < total_slots; idx++) {
+        memory_slots[idx].tag = idx + 1;
+        printf("Segment %d: ", idx + 1);
+        scanf("%d", &memory_slots[idx].capacity);
+        memory_slots[idx].vacant = memory_slots[idx].capacity;
     }
 
-    /* Input processes */
-    printf("\nEnter the number of Processes: ");
-    scanf("%d", &num_processes);
-
-    printf("Enter the size of each Process:\n");
-    for(i = 0; i < num_processes; i++) {
-        printf("Process %d: ", i+1);
-        scanf("%d", &processes[i]);
+    printf("\nProvide total customer jobs: ");
+    scanf("%d", &total_jobs);
+    
+    printf("Provide capacity demands for jobs:\n");
+    for (int idx = 0; idx < total_jobs; idx++) {
+        printf("Job J%d: ", idx + 1);
+        scanf("%d", &job_requests[idx]);
     }
 
-    while(1) {
-        printf("\n========== MENU ==========\n");
-        printf("1. First Fit\n");
-        printf("2. Best Fit\n");
-        printf("3. Worst Fit\n");
-        printf("4. Exit\n");
-        printf("==========================\n");
-        printf("Enter your choice: ");
-        scanf("%d", &choice);
+    while (true) {
+        printf("\n-----------------------------------------\n");
+        printf("         SYSTEM REALLOCATION HUB         \n");
+        printf("-----------------------------------------\n");
+        printf("1] Run First-Fit Engine\n");
+        printf("2] Run Best-Fit Engine\n");
+        printf("3] Run Worst-Fit Engine\n");
+        printf("4] Terminate Program\n");
+        printf("Select an operation: ");
+        scanf("%d", &menu_select);
 
-        switch(choice) {
-            case 1:
-                firstFit(partitions, num_partitions, processes, num_processes);
-                break;
-            case 2:
-                bestFit(partitions, num_partitions, processes, num_processes);
-                break;
-            case 3:
-                worstFit(partitions, num_partitions, processes, num_processes);
-                break;
-            case 4:
-                printf("\nExiting program. Thank you!\n");
-                exit(0);
-            default:
-                printf("\nInvalid choice! Please try again.\n");
+        if (menu_select == 1) {
+            printf("\n--- RUNNING FIRST-FIT MODE ---");
+            executeFirstFit(memory_slots, total_slots, job_requests, total_jobs);
+        } else if (menu_select == 2) {
+            printf("\n--- RUNNING BEST-FIT MODE ---");
+            executeBestFit(memory_slots, total_slots, job_requests, total_jobs);
+        } else if (menu_select == 3) {
+            printf("\n--- RUNNING WORST-FIT MODE ---");
+            executeWorstFit(memory_slots, total_slots, job_requests, total_jobs);
+        } else if (menu_select == 4) {
+            break;
+        } else {
+            printf("Selection out of bounds. Retry.\n");
         }
     }
 
     return 0;
 }
+
+[24bcs056@mepcolinux ex7]$./q1
+Provide total memory segments: 5
+Provide capacities for segments:
+Segment 1: 375
+Segment 2: 400
+Segment 3: 200
+Segment 4: 175
+Segment 5: 250
+
+Provide total customer jobs: 5
+Provide capacity demands for jobs:
+Job J1: 300
+Job J2: 380
+Job J3: 200
+Job J4: 180
+Job J5: 200
+
+-----------------------------------------
+         SYSTEM REALLOCATION HUB         
+-----------------------------------------
+1] Run First-Fit Engine
+2] Run Best-Fit Engine
+3] Run Worst-Fit Engine
+4] Terminate Program
+Select an operation: 1
+
+--- RUNNING FIRST-FIT MODE ---
+Job ID		Job Volume	Partition Tag	Internal Leak
+=============================================================
+  J1         	  300         	  Slot 1    	  75          
+  J2         	  380         	  Slot 2    	  20          
+  J3         	  200         	  Slot 3    	  0           
+  J4         	  180         	  Slot 5    	  70          
+  J5         	  200         	  Unassigned	  -
+=============================================================
+Cumulative Internal Fragmentation : 165
+Cumulative External Fragmentation : 175
+
+-----------------------------------------
+         SYSTEM REALLOCATION HUB         
+-----------------------------------------
+1] Run First-Fit Engine
+2] Run Best-Fit Engine
+3] Run Worst-Fit Engine
+4] Terminate Program
+Select an operation: 2
+
+--- RUNNING BEST-FIT MODE ---
+Job ID		Job Volume	Partition Tag	Internal Leak
+=============================================================
+  J1         	  300         	  Slot 1    	  75          
+  J2         	  380         	  Slot 2    	  20          
+  J3         	  200         	  Slot 3    	  0           
+  J4         	  180         	  Slot 5    	  70          
+  J5         	  200         	  Unassigned	  -
+=============================================================
+Cumulative Internal Fragmentation : 165
+Cumulative External Fragmentation : 175
+
+-----------------------------------------
+         SYSTEM REALLOCATION HUB         
+-----------------------------------------
+1] Run First-Fit Engine
+2] Run Best-Fit Engine
+3] Run Worst-Fit Engine
+4] Terminate Program
+Select an operation: 3
+
+--- RUNNING WORST-FIT MODE ---
+Job ID		Job Volume	Partition Tag	Internal Leak
+=============================================================
+  J1         	  300         	  Slot 2    	  100         
+  J2         	  380         	  Unassigned	  -
+  J3         	  200         	  Slot 1    	  175         
+  J4         	  180         	  Slot 5    	  70          
+  J5         	  200         	  Slot 3    	  0           
+=============================================================
+Cumulative Internal Fragmentation : 345
+Cumulative External Fragmentation : 175
+
+-----------------------------------------
+         SYSTEM REALLOCATION HUB         
+-----------------------------------------
+1] Run First-Fit Engine
+2] Run Best-Fit Engine
+3] Run Worst-Fit Engine
+4] Terminate Program
+Select an operation: 4
